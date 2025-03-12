@@ -1,0 +1,38 @@
+# Um arquivo de configuração para o Supabase CLI.
+# Veja https://supabase.com/docs/reference/cli/config para mais informações.
+
+project_id = "seu-project-id"
+
+[api]
+# URL do projeto Supabase
+endpoint = "https://seu-project-id.supabase.co"
+# Chave anônima do projeto Supabase
+anon_key = "sua-anon-key"
+# Chave de serviço do projeto Supabase (use com cuidado!)
+service_role_key = "sua-service-role-key"
+
+[db]
+# Porta para o banco de dados PostgreSQL local
+port = 54322
+# Senha para o usuário postgres local
+password = "postgres"
+
+[studio]
+# Porta para o Studio Supabase local
+port = 54323
+
+[functions]
+# Porta para as funções Edge Functions locais
+port = 54321
+
+[auth]
+# URL para o serviço de autenticação local
+site_url = "http://localhost:3000"
+# Lista de redirecionamentos permitidos para o serviço de autenticação
+additional_redirect_urls = ["https://localhost:3000"]
+# Quanto tempo um link de confirmação é válido
+autoconfirm_expiry_minutes = 10
+# Quanto tempo um link de convite é válido
+invite_expiry_days = 7
+# Quanto tempo um link de redefinição de senha é válido
+recovery_expiry_minutes = 60 
