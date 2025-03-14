@@ -1,8 +1,8 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import { LayoutWrapper } from "@/components/layout-wrapper";
-import { AuthProvider } from "@/context/auth-context";
-import { Toaster } from "@/components/ui/toaster";
+import { Metadata } from 'next';
+import { ClerkProvider } from '@clerk/nextjs';
+import { Geist, Geist_Mono } from 'next/font/google';
+import { ToasterProvider } from "@/components/ui/toaster-provider";
+import { AuthHeader } from '@/components/auth/auth-header';
 import "./globals.css";
 
 const geistSans = Geist({
@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Lista de Tarefas",
-  description: "Aplicativo de lista de tarefas criado com Next.js",
+  title: 'Lista de Tarefas',
+  description: 'Aplicativo de lista de tarefas criado com Next.js',
 };
 
 export default function RootLayout({
@@ -26,20 +26,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html 
-      lang="pt-BR" 
-      suppressHydrationWarning
-    >
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+    <ClerkProvider>
+      <html 
+        lang="pt-BR" 
+        suppressHydrationWarning
       >
-        <AuthProvider>
-          <LayoutWrapper>
+        <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+          <AuthHeader />
+          <main>
             {children}
-          </LayoutWrapper>
-          <Toaster />
-        </AuthProvider>
-      </body>
-    </html>
+          </main>
+          <ToasterProvider />
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }

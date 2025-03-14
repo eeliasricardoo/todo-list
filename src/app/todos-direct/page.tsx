@@ -1,25 +1,41 @@
 "use client";
 
-import React from "react";
-import { TodoCreate } from "@/components/todo/todo-create";
-import { TodoList } from "@/components/todo/todo-list";
-import { Toaster } from "@/components/ui/toaster";
-import { Navbar } from "@/components/navbar";
-import { useUser } from '@clerk/nextjs';
+import { useEffect, useState } from 'react';
+import { TodoList } from '@/components/todo/todo-list';
+import { TodoCreate } from '@/components/todo/todo-create';
+import { Navbar } from '@/components/navbar';
+import { useAuth } from '@/context/auth-context';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ProfileCheck } from "@/components/auth/profile-check";
 
-export default function TodosPage() {
-  const { isLoaded, isSignedIn } = useUser();
+export default function TodosDirectPage() {
+  const { user, session, isLoading } = useAuth();
+  const [loadingStatus, setLoadingStatus] = useState("Verificando autenticação...");
+
+  useEffect(() => {
+    console.log('TodosDirectPage - Estado de autenticação:', { 
+      user: user?.id, 
+      sessionExists: !!session,
+      isLoading
+    });
+    
+    // Verificar e atualizar mensagens de status
+    if (isLoading) {
+      setLoadingStatus("Carregando dados de autenticação...");
+    } else if (!user) {
+      setLoadingStatus("Usuário não autenticado. Você deve fazer login.");
+    } else {
+      setLoadingStatus("Autenticado com sucesso! Carregando suas tarefas...");
+    }
+  }, [user, session, isLoading]);
 
   // Enquanto estiver carregando, mostrar skeleton
-  if (!isLoaded) {
+  if (isLoading) {
     return (
       <>
         <Navbar />
         <div className="container max-w-2xl mx-auto py-8 px-4">
           <h1 className="text-3xl font-bold mb-8 text-center">Lista de Tarefas</h1>
-          <div className="text-center mb-4 text-sm text-muted-foreground">Carregando...</div>
+          <div className="text-center mb-4 text-sm text-muted-foreground">{loadingStatus}</div>
           <div className="space-y-4">
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-12 w-full" />
@@ -30,16 +46,15 @@ export default function TodosPage() {
     );
   }
 
-  // Se não estiver autenticado - o middleware já deve ter redirecionado
-  // mas mantemos esta verificação por segurança
-  if (!isSignedIn) {
+  // Se não estiver autenticado
+  if (!user) {
     return (
       <>
         <Navbar />
         <div className="container max-w-2xl mx-auto py-8 px-4">
           <h1 className="text-3xl font-bold mb-8 text-center">Lista de Tarefas</h1>
           <div className="text-center p-8 border rounded-lg">
-            <p className="mb-4 text-muted-foreground">Você precisa estar autenticado para ver suas tarefas.</p>
+            <p className="mb-4 text-muted-foreground">{loadingStatus}</p>
             <button
               onClick={() => window.location.href = '/login'}
               className="px-4 py-2 bg-primary text-primary-foreground rounded"
@@ -52,16 +67,15 @@ export default function TodosPage() {
     );
   }
 
-  // Usuário autenticado - verificar se tem perfil completo antes de mostrar tarefas
+  // Usuário autenticado - mostrar lista de tarefas
   return (
-    <ProfileCheck>
+    <>
       <Navbar />
       <div className="container max-w-2xl mx-auto py-8 px-4">
         <h1 className="text-3xl font-bold mb-8 text-center">Lista de Tarefas</h1>
         <TodoCreate />
         <TodoList />
-        <Toaster />
       </div>
-    </ProfileCheck>
+    </>
   );
 } 

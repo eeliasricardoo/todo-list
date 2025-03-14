@@ -3,10 +3,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Configuração para supressão de warnings de hidratação
   reactStrictMode: true,
-  // Ignorar erros de hidratação durante o desenvolvimento
+  // Configurações experimentais
   experimental: {
-    // Esta opção em específico ajuda a ignorar erros de hidratação causados por extensões
-    suppressHydrationWarning: true,
+    // Removida a opção suppressHydrationWarning que não é reconhecida
   },
   // Opções de React
   compiler: {

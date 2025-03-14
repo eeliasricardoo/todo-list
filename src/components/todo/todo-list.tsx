@@ -1,142 +1,152 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { useTodoStore } from "@/lib/store/todo-store";
-import { SortableTodoItem } from "./sortable-todo-item";
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-  DragStartEvent,
-  DragOverlay,
-} from "@dnd-kit/core";
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-  arrayMove,
-} from "@dnd-kit/sortable";
+import { useState, useEffect } from "react";
 import { TodoItem } from "./todo-item";
+import { useUser } from "@clerk/nextjs";
 import { useToast } from "@/components/ui/use-toast";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { RefreshCcw } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+
+interface Todo {
+  id: string;
+  title: string;
+  completed: boolean;
+  user_id: string;
+  created_at: string;
+}
 
 export function TodoList() {
-  const { todos, isLoading, error, fetchAllTodos, reorderTodos } = useTodoStore();
-  const [activeTodo, setActiveTodo] = useState<string | null>(null);
+  const [todos, setTodos] = useState<Todo[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { user } = useUser();
   const { toast } = useToast();
 
-  // Buscar tarefas ao montar o componente
+  // Buscar todas as tarefas do usuário
   useEffect(() => {
-    fetchAllTodos();
-  }, [fetchAllTodos]);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8, // Mínimo de 8px para iniciar o drag
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
-
-  const handleDragStart = (event: DragStartEvent) => {
-    setActiveTodo(event.active.id.toString());
-  };
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    setActiveTodo(null);
-    
-    if (over && active.id !== over.id) {
-      reorderTodos(active.id.toString(), over.id.toString());
+    const fetchTodos = async () => {
+      if (!user) return;
       
+      try {
+        const response = await fetch('/api/todos');
+        
+        if (!response.ok) {
+          throw new Error('Erro ao buscar tarefas');
+        }
+        
+        const data = await response.json();
+        setTodos(data);
+      } catch (error: any) {
+        console.error('Erro ao buscar tarefas:', error);
+        toast({
+          title: 'Erro ao carregar tarefas',
+          description: error.message || 'Não foi possível carregar suas tarefas.',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchTodos();
+  }, [user, toast]);
+
+  // Função para atualizar uma tarefa
+  const updateTodo = async (id: string, completed: boolean) => {
+    try {
+      const response = await fetch(`/api/todos/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ completed }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Erro ao atualizar tarefa');
+      }
+      
+      // Atualizar o estado localmente
+      setTodos(todos.map(todo => 
+        todo.id === id ? { ...todo, completed } : todo
+      ));
+    } catch (error: any) {
+      console.error('Erro ao atualizar tarefa:', error);
       toast({
-        title: "Tarefa reordenada",
-        description: "A ordem das tarefas foi atualizada com sucesso.",
-        duration: 2000,
+        title: 'Erro ao atualizar tarefa',
+        description: error.message || 'Não foi possível atualizar a tarefa.',
+        variant: 'destructive',
       });
     }
   };
 
-  const getActiveTodoItem = () => {
-    if (!activeTodo) return null;
-    const todo = todos.find(t => t.id === activeTodo);
-    if (!todo) return null;
-    return todo;
+  // Função para excluir uma tarefa
+  const deleteTodo = async (id: string) => {
+    try {
+      const response = await fetch(`/api/todos/${id}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Erro ao excluir tarefa');
+      }
+      
+      // Atualizar o estado localmente
+      setTodos(todos.filter(todo => todo.id !== id));
+      
+      toast({
+        title: 'Tarefa excluída',
+        description: 'A tarefa foi removida com sucesso.',
+      });
+    } catch (error: any) {
+      console.error('Erro ao excluir tarefa:', error);
+      toast({
+        title: 'Erro ao excluir tarefa',
+        description: error.message || 'Não foi possível excluir a tarefa.',
+        variant: 'destructive',
+      });
+    }
   };
 
-  if (isLoading && todos.length === 0) {
+  // Renderizar estado de carregamento
+  if (isLoading) {
     return (
-      <div className="text-center p-8 text-muted-foreground">
-        <div className="animate-spin mx-auto mb-4 h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
-        Carregando suas tarefas...
+      <div className="space-y-4">
+        {[1, 2, 3].map((index) => (
+          <Skeleton key={index} className="h-14 w-full rounded-md" />
+        ))}
       </div>
     );
   }
 
-  if (error) {
-    return (
-      <Alert variant="destructive" className="mb-4">
-        <AlertTitle>Erro ao carregar tarefas</AlertTitle>
-        <AlertDescription className="mb-2">
-          {error.message || "Não foi possível carregar suas tarefas. Tente novamente."}
-        </AlertDescription>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={() => fetchAllTodos()}
-          className="mt-2"
-        >
-          <RefreshCcw className="mr-2 h-4 w-4" />
-          Tentar novamente
-        </Button>
-      </Alert>
-    );
-  }
-
+  // Sem tarefas
   if (todos.length === 0) {
     return (
-      <div className="text-center p-8 text-muted-foreground">
-        Nenhuma tarefa encontrada. Adicione uma nova tarefa acima.
+      <div className="text-center py-8 text-muted-foreground">
+        Você ainda não tem tarefas. Crie uma tarefa acima para começar.
       </div>
     );
   }
 
+  // Ordenar tarefas: tarefas não concluídas primeiro, depois por data de criação
+  const sortedTodos = [...todos].sort((a, b) => {
+    // Primeiro por status (não concluídas primeiro)
+    if (a.completed !== b.completed) {
+      return a.completed ? 1 : -1;
+    }
+    // Depois por data (mais recentes primeiro)
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
+
+  // Renderizar lista de tarefas
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragStart={handleDragStart}
-      onDragEnd={handleDragEnd}
-    >
-      <div className="relative">
-        <p className="text-sm text-muted-foreground mb-4 italic">
-          Dica: Arraste os itens usando a alça à esquerda para reordenar.
-        </p>
-        <SortableContext items={todos.map(todo => todo.id)} strategy={verticalListSortingStrategy}>
-          <div>
-            {todos.map((todo) => (
-              <SortableTodoItem key={todo.id} todo={todo} />
-            ))}
-          </div>
-        </SortableContext>
-        
-        <DragOverlay adjustScale={true}>
-          {activeTodo && getActiveTodoItem() && (
-            <div className="w-full max-w-2xl opacity-80">
-              <TodoItem todo={getActiveTodoItem()!} />
-            </div>
-          )}
-        </DragOverlay>
-      </div>
-    </DndContext>
+    <div className="space-y-4">
+      {sortedTodos.map((todo) => (
+        <TodoItem 
+          key={todo.id}
+          todo={todo}
+          onToggle={(completed) => updateTodo(todo.id, completed)}
+          onDelete={() => deleteTodo(todo.id)}
+        />
+      ))}
+    </div>
   );
 } 

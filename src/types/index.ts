@@ -2,14 +2,14 @@ export interface Todo {
   id: string;
   title: string;
   completed: boolean;
-  createdAt: Date;
-  userId?: string;
+  user_id: string;
+  created_at: string;
 }
 
-export type TodoCreateInput = Omit<Todo, 'id' | 'createdAt'>;
+export type TodoCreateInput = Omit<Todo, 'id' | 'created_at'>;
 
-export interface TodoWithString extends Omit<Todo, 'createdAt'> {
-  createdAt: string;
+export interface TodoWithString extends Omit<Todo, 'created_at'> {
+  created_at: string;
 }
 
 export interface SupabaseTodo {
@@ -28,13 +28,13 @@ export interface User {
 }
 
 // Converter de Supabase para o formato da aplicação
-export function supabaseToAppTodo(supabaseTodo: SupabaseTodo): Todo {
+export function supabaseToAppTodo(supabaseTodo: any): Todo {
   return {
     id: supabaseTodo.id,
     title: supabaseTodo.title,
     completed: supabaseTodo.completed,
-    createdAt: new Date(supabaseTodo.created_at),
-    userId: supabaseTodo.user_id,
+    user_id: supabaseTodo.user_id,
+    created_at: supabaseTodo.created_at,
   };
 }
 
@@ -43,7 +43,7 @@ export function appToSupabaseTodo(todo: TodoWithString, userId: string): Omit<Su
   return {
     title: todo.title,
     completed: todo.completed,
-    created_at: todo.createdAt,
+    created_at: todo.created_at,
     user_id: userId,
   };
 } 

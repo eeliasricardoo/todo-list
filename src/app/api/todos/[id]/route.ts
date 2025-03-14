@@ -1,100 +1,91 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs';
 import { supabaseToAppTodo } from '@/types';
-import { Database } from '@/types/supabase';
+import supabaseAdmin from '@/lib/services/supabase-admin';
 
-// Função para obter o cliente do Supabase para API Routes
-function getSupabaseClient() {
-  const cookieStore = cookies();
-  return createRouteHandlerClient<Database>({ cookies: () => cookieStore });
+// Usar o cliente Supabase administrativo
+const supabase = supabaseAdmin;
+
+// Tipos para a resposta da API
+interface Params {
+  params: {
+    id: string;
+  };
 }
 
-// GET - Obter uma tarefa específica
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+// GET: Buscar uma tarefa específica
+export async function GET(req: NextRequest, { params }: Params) {
   try {
-    const id = params.id;
-    const supabase = getSupabaseClient();
+    // Obter o ID do usuário autenticado via Clerk
+    const { userId } = auth();
     
-    // Verificar autenticação
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    // Verificar se o usuário está autenticado
+    if (!userId) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
     
-    // Buscar tarefa específica
+    const id = params.id;
+    
+    // Buscar a tarefa no Supabase
+    // Como estamos usando cliente administrativo, aplicamos o filtro de usuário manualmente
     const { data, error } = await supabase
       .from('todos')
       .select('*')
       .eq('id', id)
-      .eq('user_id', session.user.id)
+      .eq('user_id', userId)
       .single();
     
     if (error) {
-      if (error.code === 'PGRST116') {
-        return NextResponse.json({ error: 'Tarefa não encontrada' }, { status: 404 });
-      }
-      console.error('Erro ao buscar tarefa:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      // Tarefa não encontrada ou erro de permissão
+      return NextResponse.json(
+        { error: error.code === 'PGRST116' ? 'Tarefa não encontrada' : error.message }, 
+        { status: error.code === 'PGRST116' ? 404 : 500 }
+      );
     }
     
-    // Converter para o formato da aplicação
     return NextResponse.json(supabaseToAppTodo(data));
-  } catch (error) {
-    console.error('Erro ao processar requisição:', error);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
+  } catch (error: any) {
+    console.error('Erro na API de tarefa específica:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
-// PATCH - Atualizar uma tarefa
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+// PATCH: Atualizar uma tarefa específica
+export async function PATCH(req: NextRequest, { params }: Params) {
   try {
-    const id = params.id;
-    const supabase = getSupabaseClient();
+    // Obter o ID do usuário autenticado via Clerk
+    const { userId } = auth();
     
-    // Verificar autenticação
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    // Verificar se o usuário está autenticado
+    if (!userId) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
     
-    // Obter dados do corpo da requisição
-    const updates = await request.json();
+    const id = params.id;
+    const data = await req.json();
     
-    // Verificar permissão para atualizar esta tarefa
+    // Verificar se a tarefa pertence ao usuário
     const { data: todoCheck, error: checkError } = await supabase
       .from('todos')
-      .select('user_id')
+      .select('id')
       .eq('id', id)
+      .eq('user_id', userId)
       .single();
     
     if (checkError) {
-      if (checkError.code === 'PGRST116') {
-        return NextResponse.json({ error: 'Tarefa não encontrada' }, { status: 404 });
-      }
-      console.error('Erro ao verificar tarefa:', checkError);
-      return NextResponse.json({ error: checkError.message }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Tarefa não encontrada ou sem permissão para editar' }, 
+        { status: 404 }
+      );
     }
     
-    if (todoCheck.user_id !== session.user.id) {
-      return NextResponse.json({ error: 'Não autorizado a modificar esta tarefa' }, { status: 403 });
-    }
-    
-    // Atualizar tarefa no banco de dados
-    const { data, error } = await supabase
+    // Atualizar a tarefa
+    // Precisamos filtrar pelo user_id para garantir que o usuário só atualize suas próprias tarefas
+    const { data: updatedTodo, error } = await supabase
       .from('todos')
-      .update({
-        ...updates,
-        title: updates.title,
-        completed: updates.completed,
-      })
+      .update(data)
       .eq('id', id)
+      .eq('user_id', userId)
       .select()
       .single();
     
@@ -103,63 +94,57 @@ export async function PATCH(
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
     
-    // Converter para o formato da aplicação e retornar
-    return NextResponse.json(supabaseToAppTodo(data));
-  } catch (error) {
-    console.error('Erro ao processar requisição:', error);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
+    return NextResponse.json(supabaseToAppTodo(updatedTodo));
+  } catch (error: any) {
+    console.error('Erro na API de atualização de tarefa:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
-// DELETE - Remover uma tarefa
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+// DELETE: Remover uma tarefa específica
+export async function DELETE(req: NextRequest, { params }: Params) {
   try {
-    const id = params.id;
-    const supabase = getSupabaseClient();
+    // Obter o ID do usuário autenticado via Clerk
+    const { userId } = auth();
     
-    // Verificar autenticação
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    // Verificar se o usuário está autenticado
+    if (!userId) {
+      return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
     
-    // Verificar permissão para excluir esta tarefa
+    const id = params.id;
+    
+    // Verificar se a tarefa pertence ao usuário
     const { data: todoCheck, error: checkError } = await supabase
       .from('todos')
-      .select('user_id')
+      .select('id')
       .eq('id', id)
+      .eq('user_id', userId)
       .single();
     
     if (checkError) {
-      if (checkError.code === 'PGRST116') {
-        return NextResponse.json({ error: 'Tarefa não encontrada' }, { status: 404 });
-      }
-      console.error('Erro ao verificar tarefa:', checkError);
-      return NextResponse.json({ error: checkError.message }, { status: 500 });
+      return NextResponse.json(
+        { error: 'Tarefa não encontrada ou sem permissão para excluir' }, 
+        { status: 404 }
+      );
     }
     
-    if (todoCheck.user_id !== session.user.id) {
-      return NextResponse.json({ error: 'Não autorizado a excluir esta tarefa' }, { status: 403 });
-    }
-    
-    // Excluir tarefa do banco de dados
+    // Excluir a tarefa
+    // Filtrar pelo user_id para garantir que o usuário só exclua suas próprias tarefas
     const { error } = await supabase
       .from('todos')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('user_id', userId);
     
     if (error) {
       console.error('Erro ao excluir tarefa:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
     
-    // Retornar sucesso
-    return new NextResponse(null, { status: 204 });
-  } catch (error) {
-    console.error('Erro ao processar requisição:', error);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('Erro na API de exclusão de tarefa:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 } 

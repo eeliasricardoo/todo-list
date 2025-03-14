@@ -1,41 +1,14 @@
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import { clerkMiddleware } from "@clerk/nextjs/server";
 
-export async function middleware(req: NextRequest) {
-  // Criando um cliente Supabase específico para o middleware
-  const res = NextResponse.next();
-  const supabase = createMiddlewareClient({ req, res });
+// Este middleware do Clerk gerencia a autenticação para rotas específicas
+export default clerkMiddleware();
 
-  // Verificando se o usuário está autenticado
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  // URLs que não exigem autenticação
-  const publicUrls = ['/login', '/register', '/'];
-  
-  // Se o usuário não estiver autenticado e estiver tentando acessar uma rota protegida
-  if (!session && !publicUrls.includes(req.nextUrl.pathname)) {
-    // Redirecionar para a página de login
-    const redirectUrl = new URL('/login', req.url);
-    redirectUrl.searchParams.set('redirectedFrom', req.nextUrl.pathname);
-    return NextResponse.redirect(redirectUrl);
-  }
-
-  // Se o usuário estiver autenticado e estiver tentando acessar páginas de login/registro
-  if (session && (req.nextUrl.pathname === '/login' || req.nextUrl.pathname === '/register')) {
-    // Redirecionar para a página de tarefas
-    return NextResponse.redirect(new URL('/todos', req.url));
-  }
-
-  return res;
-}
-
-// Configurando quais caminhos o middleware deve ser executado
 export const config = {
+  // Configuração de matcher para todas as rotas, exceto arquivos estáticos
   matcher: [
-    // Executar em todas as rotas, exceto arquivos estáticos e API
-    '/((?!_next/static|_next/image|favicon.ico|api/auth).*)',
+    // Skip Next.js internals and all static files, unless found in search params
+    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
+    // Always run for API routes
+    '/(api|trpc)(.*)',
   ],
 }; 
